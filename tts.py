@@ -8,7 +8,9 @@ import time
 import re
 import uuid
 import argparse
-
+import asyncio
+import requests
+from flask import Flask, request, send_from_directory
 
 '''命令行参数解析'''
 def parseArgs():
@@ -98,11 +100,47 @@ def get_SSML(path):
     with open(path,'r',encoding='utf-8') as f:
         return f.read()
 
+def make_SSML(text):
+    return '''
+    <speak xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xmlns:emo="http://www.w3.org/2009/10/emotionml" version="1.0" xml:lang="en-US">
+        <voice name="zh-CN-XiaoxiaoNeural">
+            <prosody rate="0%" pitch="0%">
+            {}
+            </prosody>
+        </voice>
+    </speak>
+    '''.format(text)
+
+
+async def main(text):
+    SSML_text = make_SSML(text)
+    output_path = 'output_' + str(int(time.time() * 1000))
+    await mainSeq(SSML_text, output_path)
+    try:
+        return send_from_directory('',output_path+".mp3")
+    except Exception as e:
+        return str(e)
+
+app = Flask(__name__)
+
+@app.route("/")
+def index():
+    if 'text' in request.args.keys():
+        arg = request.args.get("text")
+
+        responses = asyncio.run(main(arg))
+        return responses
+    else:
+        return 'hello'
+
+
 if __name__ == "__main__":
-    args = parseArgs()
-    SSML_text = get_SSML(args.input)
-    output_path = args.output if args.output else 'output_'+ str(int(time.time()*1000))
-    asyncio.get_event_loop().run_until_complete(mainSeq(SSML_text, output_path))
-    print('completed')
-    # python tts.py --input SSML.xml
-    # python tts.py --input SSML.xml --output 保存文件名
+    app.run(debug=False, use_reloader=False)
+# if __name__ == "__main__":
+#     args = parseArgs()
+#     SSML_text = get_SSML(args.input)
+#     output_path = args.output if args.output else 'output_'+ str(int(time.time()*1000))
+#     asyncio.get_event_loop().run_until_complete(mainSeq(SSML_text, output_path))
+#     print('completed')
+#     # python tts.py --input SSML.xml
+#     # python tts.py --input SSML.xml --output 保存文件名
